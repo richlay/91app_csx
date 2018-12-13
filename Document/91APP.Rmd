@@ -1,0 +1,113 @@
+---
+title: "91APP"
+author: "Ching-Yung Chang"
+date: "12/6/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(gridExtra)
+library(showtext)
+showtext_auto(enable = TRUE)
+
+# font_add("黑體")
+```
+
+
+
+```{r, echo=FALSE}
+# load("~/Documents/91APP_DataSet/91APP.RData")
+par(family = "AR PL UKai TW")
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+Member_data <- read.csv("~/Documents/91APP_DataSet/Member.csv", header=T, sep=",")
+ECoupon_data <- read.csv("~/Documents/91APP_DataSet/ECoupon.csv", header=T, sep=",")
+Orders_data <- read.csv("~/Documents/91APP_DataSet/Orders.csv", header=T, sep=",")
+PromotionConditions_data <- read.csv("~/Documents/91APP_DataSet/PromotionConditions.csv",    
+                                     header=T, sep=",")
+PromotionOrders_data <- read.csv("~/Documents/91APP_DataSet/PromotionOrders.csv", 
+                                 header=T, sep=",")
+```
+
+
+
+```{r}
+ggplot(Member_data, aes(x = GenderTypeDef)) + geom_bar(position="dodge")
+ggplot(Member_data, aes(x = RegisterSourceTypeDef)) + geom_bar(position="dodge")
+ggplot(Member_data, aes(x = IsInBlackList)) + geom_bar(position="dodge")
+```
+
+
+```{r}
+ggplot(Orders_data, aes(x = TrackSourceTypeDef)) + geom_bar(position="dodge")
+ggplot(Orders_data, aes(x = TrackDeviceTypeDef)) + geom_bar(position="dodge")
+ggplot(Orders_data, aes(x = PayProfileTypeDef)) + geom_bar(position="dodge")
+ggplot(Orders_data, aes(x = Quantity)) + geom_bar(position="dodge")
+ggplot(Orders_data, aes(x = City)) + geom_bar(aes(fill=factor(..count..)), 
+                              position="dodge", family = "AR PL UKai TW") + coord_flip()
+ggplot(Orders_data, aes(x = DeliverTypeDef)) + geom_bar(position="dodge")
+
+```
+
+
+
+```{r}
+ggplot(Orders_data, aes(x = TrackSourceTypeDef)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = TrackDeviceTypeDef)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = PayProfileTypeDef)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = Quantity)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = City)) + 
+    geom_bar(aes(fill = factor(..count..)), position = "dodge", family = "AR PL UKai TW") + coord_flip()
+ggplot(Orders_data, aes(x = DeliverTypeDef)) + geom_bar(position = "dodge")
+```
+
+```{r}
+ggplot(Orders_data, aes(x = IsMajor)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = IsGift)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = IsSalePageGift)) + geom_bar(position = "dodge")
+```
+
+```{r}
+ggplot(Orders_data, aes(x = PromotionDiscount)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = ECouponDiscount)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = StatusDef)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = CauseDef)) + 
+      geom_bar(aes(fill=factor(..count..)), position="dodge", family = "AR PL UKai TW") + coord_flip()
+```
+
+
+
+```{r}
+ggplot(ECoupon_data, aes(x = ECouponTypeDef)) + geom_bar(aes(fill=factor(..count..)), position="dodge")
+ggplot(ECoupon_data, aes(x = ECouponDiscountPrice)) + geom_bar(aes(fill = factor(..count..)), 
+                                                               position = "dodge")
+ggplot(ECoupon_data, aes(x = ECouponMaxDiscountLimit)) + geom_bar(aes(fill = factor(..count..)), 
+                                                                  position = "dodge")
+```
+
+
+
+```{r}
+ggplot(PromotionConditions_data, aes(x = PromotionValidFlag)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+ggplot(PromotionConditions_data, aes(x = PromotionCondition_TotalQty)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+ggplot(PromotionConditions_data, aes(x = DiscountType)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+```
+
+
+
+```{r}
+ggplot(PromotionOrders_data, aes(x = DiscountType)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+```
+
