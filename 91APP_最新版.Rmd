@@ -1,0 +1,524 @@
+---
+title: "91APP"
+author: "Ching-Yung Chang"
+date: "12/6/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(gridExtra)
+library(showtext)
+showtext_auto(enable = TRUE)
+```
+
+
+```{r, echo=FALSE}
+par(family = "AR PL UKai TW")
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+Member_data <- read.csv("~/Documents/91APP_DataSet/Member.csv", header=T, sep=",")
+ECoupon_data <- read.csv("~/Documents/91APP_DataSet/ECoupon.csv", header=T, sep=",")
+Orders_data <- read.csv("~/Documents/91APP_DataSet/Orders.csv", header=T, sep=",", na.strings=" ")
+PromotionConditions_data <- read.csv("~/Documents/91APP_DataSet/PromotionConditions.csv",    
+                                     header=T, sep=",")
+PromotionOrders_data <- read.csv("~/Documents/91APP_DataSet/PromotionOrders.csv", 
+                                 header=T, sep=",")
+MemberId_Price <- read.csv("~/Documents/91APP_DataSet/MemberId_Price.csv", header=T, sep=",")
+MemberId_Price <- MemberId_Price[ , -1]
+
+MemberId_Price_New <- read.csv("~/Documents/91APP_DataSet/MemberId_Price_New.csv", 
+                                    header=T, sep=",")
+```
+
+ㄧ、顧客族群分析(白金客戶、金客戶、鐵客戶、鉛客戶)
+
+```{r}
+MemberId_Price.order <- MemberId_Price[order(MemberId_Price$Sum_Cost, decreasing=TRUE), ]
+multi.fun <- function(Sum_Cost) {
+      c(sum = sum(Sum_Cost), mean = mean(Sum_Cost))
+}
+sapply(MemberId_Price.order, multi.fun)
+
+# platinum customer (白金客戶)
+MemberId_Price.order.platinum <- MemberId_Price.order[1:5576, ]
+sapply(MemberId_Price.order.platinum, multi.fun)
+MemberId_Price.order.platinum <- MemberId_Price.order[1:5576, ] %>%
+  mutate(Type = "platinum")
+
+# gold customer (金客戶)
+MemberId_Price.order.gold <- MemberId_Price.order[5577:28385, ]
+sapply(MemberId_Price.order.gold, multi.fun)
+MemberId_Price.order.gold <- MemberId_Price.order[5577:28385, ] %>%
+  mutate(Type = "gold")
+
+# iron customer (鐵客戶)
+MemberId_Price.order.iron <- MemberId_Price.order[28386:117871, ]
+sapply(MemberId_Price.order.iron, multi.fun)
+MemberId_Price.order.iron <- MemberId_Price.order[28386:117871, ] %>%
+  mutate(Type = "iron")
+
+# lead customer (鉛客戶)
+MemberId_Price.order.lead <- MemberId_Price.order[-c(1:117871), ]
+sapply(MemberId_Price.order.lead, multi.fun)
+MemberId_Price.order.lead <- MemberId_Price.order[-c(1:117871), ] %>%
+  mutate(Type = "lead")
+
+###
+MemberId_Price.order <- rbind(MemberId_Price.order.platinum, MemberId_Price.order.gold,
+                              MemberId_Price.order.iron, MemberId_Price.order.lead)
+
+agg = aggregate(MemberId_Price.order,
+                by = list(MemberId_Price.order$Type),
+                FUN = mean)
+colnames(agg)[colnames(agg)=="Group.1"] <- "Category"
+colnames(agg)[colnames(agg)=="Sum_Cost"] <- "Average_Cost"
+
+###
+library(scales)
+ggplot(agg, aes(x=Category, y=Average_Cost, fill = Category)) +
+    geom_bar(stat = "identity") 
+```
+
+二、RFM模型 (Recency、Frequency、Monetary)
+
+```{r}
+library(reshape2)
+Orders_frequency <- Orders_data[ , c(2,7)]
+
+# reporting date
+OrderDate <- c(as.Date(Orders_data$SalesOrderSlaveDateTime,'%Y-%m-%d'))
+Orders_frequency <- cbind(Orders_frequency, OrderDate)
+date_2 <- as.Date('2018-04-15', format='%Y-%m-%d')
+ 
+### 
+Orders_frequency <- Orders_frequency %>%
+ group_by(MemberId) %>%
+ mutate(quantity = n(),
+ recency=as.numeric(date_2-OrderDate)) %>%
+ filter(OrderDate==max(OrderDate)) %>%
+ ungroup()
+
+# classification (frequency)
+Orders_frequency_less <- Orders_frequency %>%
+  filter(quantity <= 20)
+Orders_frequency_medium <- Orders_frequency %>%
+  filter(quantity > 20 & quantity <= 100)
+Orders_frequency_more <- Orders_frequency %>%
+  filter(quantity > 100)
+
+# exploratory analysis (frequency)
+ggplot(Orders_frequency_less, aes(x=quantity)) +
+ theme_bw() +
+ scale_x_continuous(breaks=c(1:20)) +
+ geom_histogram(alpha=0.6, binwidth=2) +
+ ggtitle("Dustribution by quantity_small quantity") +
+ theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(Orders_frequency_medium, aes(x=quantity)) +
+ theme_bw() +
+ scale_x_continuous(breaks=c(20,30,40,50,60,70,80,90,100)) +
+ geom_histogram(alpha=0.6, binwidth=2) +
+ ggtitle("Dustribution by quantity_medium quantity") +
+ theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(Orders_frequency_more, aes(x=quantity)) +
+ theme_bw() +
+ scale_x_continuous(breaks=c(100,300,500,1000,2000,3000)) +
+ geom_histogram(alpha=0.6, binwidth=100) +
+ ggtitle("Dustribution by quantity_large quantity") +
+ theme(plot.title = element_text(hjust = 0.5)) 
+
+# classification (recency)
+Orders_recency_less <- Orders_frequency %>%
+  filter(recency <= 90)
+Orders_recency_medium <- Orders_frequency %>%
+  filter(recency > 91 & recency <= 365)
+Orders_recency_more <- Orders_frequency %>%
+  filter(recency > 366)
+
+# exploratory analysis (recency)
+ggplot(Orders_recency_less, aes(x=recency)) +
+ theme_bw() +
+ scale_x_continuous(breaks=c(0,10,20,30,40,50,60,70,80,90)) +
+ geom_histogram(alpha=0.6, binwidth=1) +
+ ggtitle("Dustribution by recency_last 3 months") +
+ theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(Orders_recency_medium, aes(x=recency)) +
+ theme_bw() +
+ scale_x_continuous(breaks=c(90,100,150,200,250,300,365)) +
+ geom_histogram(alpha=0.6, binwidth=1) +
+ ggtitle("Dustribution by recency_last 1 year") +
+ theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(Orders_recency_more, aes(x=recency)) +
+ theme_bw() +
+ scale_x_continuous(breaks=c(365,400,500,600,700,800,900,1000,1100)) +
+ geom_histogram(alpha=0.6, binwidth=1) +
+ ggtitle("Dustribution by recency_last 3 years") +
+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+###
+theme_set(theme_bw())
+ggplot(Orders_frequency, aes(recency, quantity)) + 
+  geom_count(col="tomato3", show.legend=F) +
+  labs(subtitle="quantity & recency", y="quantity", x="recency", title="Two Dimensions Plot")+
+ theme(plot.title = element_text(hjust = 0.5))
+
+###
+Orders_frequency_Outliers <- Orders_frequency %>%
+  filter(quantity < 1000)
+
+theme_set(theme_bw())
+ggplot(Orders_frequency_Outliers, aes(recency, quantity)) + 
+  geom_count(col="tomato3", show.legend=F) +
+  labs(subtitle="quantity & recency", y="quantity", x="recency", title="Two Dimensions Plot")+
+ theme(plot.title = element_text(hjust = 0.5)) +
+  geom_hline(yintercept=500, color="red", size=1) +
+  geom_vline(xintercept=500, color="red", size=1) +
+  geom_hline(yintercept=20, linetype="dotted", color="blue", size=0.5) +
+  geom_hline(yintercept=100, linetype="dotted", color="blue", size=0.5) +
+  geom_vline(xintercept=91, linetype="dotted", color="blue", size=0.5) +
+  geom_vline(xintercept=365,linetype="dotted", color="blue", size=0.5)
+
+## recency_less (最近有買商品)
+Orders_recency_less_Outliers <- Orders_recency_less %>%
+  filter(quantity < 1000)
+
+theme_set(theme_bw())
+ggplot(Orders_recency_less_Outliers, aes(recency, quantity)) + 
+  geom_count(col="tomato3", show.legend=F) +
+  labs(subtitle="quantity & recency", y="quantity", x="recency", title="Two Dimensions Plot")+
+ theme(plot.title = element_text(hjust = 0.5)) +
+  geom_hline(yintercept=400, color = "red", size=1) +
+  geom_vline(xintercept=45, color = "red", size=1)
+
+## recency_medium (介於less、more中間)
+Orders_recency_medium_Outliers <- Orders_recency_medium %>%
+  filter(quantity < 500)
+
+theme_set(theme_bw())
+ggplot(Orders_recency_medium_Outliers, aes(recency, quantity)) + 
+  geom_count(col="tomato3", show.legend=F) +
+  labs(subtitle="quantity & recency", y="quantity", x="recency", title="Two Dimensions Plot")+
+ theme(plot.title = element_text(hjust = 0.5))
+
+## recency_more (很久沒買商品)
+Orders_recency_more_Outliers <- Orders_recency_more %>%
+  filter(quantity < 500)
+
+theme_set(theme_bw())
+ggplot(Orders_recency_more_Outliers, aes(recency, quantity)) + 
+  geom_count(col="tomato3", show.legend=F) +
+  labs(subtitle="quantity & recency", y="quantity", x="recency", title="Two Dimensions Plot")+
+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+Orders_frequency.segm <- Orders_frequency %>%
+ mutate(segm.quan=ifelse(between(quantity, 1, 10), '1~10',
+ ifelse(between(quantity, 11, 20), '11~20',
+ ifelse(between(quantity, 21, 50), '21~50',
+ ifelse(between(quantity, 51, 100), '51~100',
+ ifelse(between(quantity, 101, 200), '101~200', '>200')))))) %>%
+ mutate(segm.rec=ifelse(between(recency, 1, 30), '過去1個月',
+ ifelse(between(recency, 31, 90), '過去3個月',
+ ifelse(between(recency, 91, 180), '過去半年',
+ ifelse(between(recency, 181, 365), '過去1年',
+ ifelse(between(recency, 366, 730), '過去2年', '過去3年'))))))
+ 
+# defining order of boundaries
+Orders_frequency.segm$segm.quan <- factor(Orders_frequency.segm$segm.quan, 
+                      levels=c('>200', '101~200', '51~100', '21~50', '11~20', '1~10'))
+Orders_frequency.segm$segm.rec <- factor(Orders_frequency.segm$segm.rec, 
+                      levels=c('過去3年','過去2年','過去1年','過去半年','過去3個月','過去1個月'))
+
+
+lcg <- Orders_frequency.segm %>%
+ group_by(segm.rec, segm.quan) %>%
+ summarise(quantity=n()) %>%
+ mutate(client='client') %>%
+ ungroup()
+
+
+lcg.matrix <- dcast(lcg, segm.quan ~ segm.rec, value.var='quantity', fun.aggregate=sum)
+
+
+lcg.adv <- lcg %>%
+mutate(rec.type = ifelse(segm.rec %in% c("過去3年", "過去2年", "過去1年"), 
+                          "很久沒買", "近期有購買"),
+quan.type = ifelse(segm.quan %in% c(">200", "101~200", "51~100"), "購買量大", "購買量小"),
+                          Customer_Type = interaction(rec.type, quan.type))
+
+ggplot(lcg.adv, aes(x=client, y=quantity, fill=Customer_Type)) +
+ theme_bw() +
+ theme(panel.grid = element_blank()) +
+ geom_rect(aes(fill = Customer_Type), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, alpha = 0.1) +
+ facet_grid(segm.quan ~ segm.rec) +
+ geom_bar(stat='identity', alpha=0.7) +
+ geom_text(aes(y=max(quantity)/2, label=quantity), size=2) +
+ ggtitle("Customer Segmentation") +
+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+```{r}
+# 修改欄位名稱
+colnames(MemberId_Price_New) <- c("MemberId","Quantity","Sum_Cost","2015.05","2015.06","2015.07", "2015.08","2015.09","2015.10","2015.11","2015.12","2016.01","2016.02","2016.03","2016.04","2016.05", "2016.06","2016.07","2016.08","2016.09","2016.10","2016.11","2016.12","2017.01","2017.02","2017.03", "2017.04","2017.05","2017.06","2017.07","2017.08","2017.09","2017.10","2017.11","2017.12", "2018.01","2018.02","2018.03","2018.04","2018.05","2018.06","2018.07","2018.08")
+
+MemberId_Price_Year <- MemberId_Price_New %>%
+  mutate("2015" = apply(MemberId_Price_New[ , 4:11], 1, sum)) %>%
+  mutate("2016" = apply(MemberId_Price_New[ , 12:23], 1, sum)) %>%
+  mutate("2017" = apply(MemberId_Price_New[ , 24:35], 1, sum)) %>%
+  mutate("2018" = apply(MemberId_Price_New[ , 36:43], 1, sum))
+
+MonthlyTotal <- c(rowSums(MemberId_Price_Year[, c(10:20)],  na.rm=FALSE, 1))
+```
+
+
+```{r}
+PromotionStartDateTime <- c(as.Date(PromotionOrders_data$PromotionStartDateTime,'%Y-%m-%d'))
+PromotionEndDateTime <- c(as.Date(PromotionOrders_data$PromotionEndDateTime,'%Y-%m-%d'))
+
+Promotion_Time <- PromotionOrders_data[ , c(1,2)]
+Promotion_Time <- cbind(Promotion_Time, PromotionStartDateTime, PromotionEndDateTime)
+
+SalesOrder_All <- Orders_data[ , c(7,17)]
+
+SalesOrder_Total <- merge(SalesOrder_All, Promotion_Time, by = "SalesOrderSlaveId", all = TRUE)
+
+# apply(is.na(SalesOrder_Total),2,sum)
+SalesOrder_Total$SalesOrderSlaveTotalPayment[is.na(SalesOrder_Total$SalesOrderSlaveTotalPayment)] <- 0
+SalesOrder_Total$PromotionId[is.na(SalesOrder_Total$PromotionId)] <- 0
+# SalesOrder_Total$promotion_length[is.na(SalesOrder_Total$promotion_length)] <- 0 (程式有誤！)
+
+promotion_length <- c(SalesOrder_Total$PromotionEndDateTime - SalesOrder_Total$PromotionStartDateTime)
+SalesOrder_Total <- cbind(SalesOrder_Total, promotion_length)
+
+
+SalesOrder_length <- SalesOrder_Total %>%
+ mutate(category_length=ifelse(between(promotion_length, 0, 0), '無促銷活動',
+ ifelse(between(promotion_length, 1, 15), '1~15',
+ ifelse(between(promotion_length, 16, 30), '16~30',
+ ifelse(between(promotion_length, 31, 60), '31~60',
+ ifelse(between(promotion_length, 61, 90), '61~90',
+ ifelse(between(promotion_length, 91, 120), '91~120',
+ ifelse(between(promotion_length, 121, 250), '121~250', '>1年'))))))))
+
+
+SalesOrder_length_agg = aggregate(SalesOrder_length$SalesOrderSlaveTotalPayment,
+                by = list(SalesOrder_length$category_length),
+                FUN = mean)
+colnames(SalesOrder_length_agg)[colnames(SalesOrder_length_agg)=="Group.1"] <- "Category"
+colnames(SalesOrder_length_agg)[colnames(SalesOrder_length_agg)=="x"] <- "Average_TotalPayment"
+
+
+library(scales)
+ggplot(SalesOrder_length_agg, aes(x=factor(Category, levels =                                         
+              c("無促銷活動","1~15","16~30","31~60","61~90","91~120","121~250",">1年")), 
+              y=Average_TotalPayment, fill = Category)) +
+    geom_bar(stat = "identity") + 
+    xlab("Category")
+```
+
+ECoupon_data 分析：
+
+```{r}
+ECouponStartDateTime_Day <- c(as.Date(ECoupon_data$ECouponStartDateTime,'%Y-%m-%d'))
+ECouponEndDateTime_Day <- c(as.Date(ECoupon_data$ECouponEndDateTime,'%Y-%m-%d'))
+ECouponLength <- c(ECouponEndDateTime_Day - ECouponStartDateTime_Day)
+
+ECoupon_data <- cbind(ECoupon_data, ECouponStartDateTime_Day, ECouponEndDateTime_Day, ECouponLength)
+
+ggplot(ECoupon_data, aes(x=ECouponLength)) +
+ theme_bw() +
+ scale_x_continuous(breaks=c(0,5,10,20,30,40,50,60,70,80,90)) +
+ geom_histogram(alpha=0.6, binwidth=2) +
+ ggtitle("ECoupon_Length") +
+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+清理 "Orders_data$City" 資料：
+
+```{r}
+Orders_data$City[Orders_data$City == "<fo"] <- NA
+Orders_data$City[Orders_data$City == "1st"] <- NA
+Orders_data$City[Orders_data$City == "25"] <- NA
+Orders_data$City[Orders_data$City == "Aya"] <- NA
+Orders_data$City[Orders_data$City == "Cha"] <- NA
+Orders_data$City[Orders_data$City == "Daf"] <- NA
+Orders_data$City[Orders_data$City == "Đại"] <- NA
+Orders_data$City[Orders_data$City == "Hsi"] <- NA
+Orders_data$City[Orders_data$City == "Hy"] <- NA
+Orders_data$City[Orders_data$City == "Ins"] <- NA
+Orders_data$City[Orders_data$City == "Jia"] <- NA
+Orders_data$City[Orders_data$City == "Kao"] <- NA
+Orders_data$City[Orders_data$City == "Keb"] <- NA
+Orders_data$City[Orders_data$City == "Kot"] <- NA
+Orders_data$City[Orders_data$City == "Nan"] <- NA
+Orders_data$City[Orders_data$City == "New"] <- NA
+Orders_data$City[Orders_data$City == "No."] <- NA
+Orders_data$City[Orders_data$City == "Quậ"] <- NA
+Orders_data$City[Orders_data$City == "Tai"] <- NA
+Orders_data$City[Orders_data$City == "Tao"] <- NA
+Orders_data$City[Orders_data$City == "Xin"] <- NA
+```
+
+MemberId(白金客戶、鉛客戶...) & City分析
+
+分析面向：
+(1) 白金客、金客戶...的組成(來自哪些縣市)
+(2) 每個縣市的組成(多少比例的白金客戶、金客戶...)
+
+```{r}
+Orders_data_City <- unique(Orders_data[ , c(2,20)])
+Orders_data_City <- merge(Orders_data_City, MemberId_Price.order, by = "MemberId", all = TRUE)
+Orders_data_City <- Orders_data_City[-c(146862,175950,263130), ]
+Orders_data_City <- Orders_data_City[grep("NA", Orders_data_City$City, invert = TRUE), ]
+
+### (1) 白金客、金客戶...的組成(來自哪些縣市)
+# 
+Orders_data_City_Platinum <- Orders_data_City %>%
+  filter(Type == "platinum") 
+ggplot(Orders_data_City_Platinum) +
+         geom_bar(aes(x = City, fill = City), position = "dodge", stat = "count") +
+         coord_flip()
+# 
+Orders_data_City_Gold <- Orders_data_City %>%
+  filter(Type == "gold") 
+ggplot(Orders_data_City_Gold) +
+         geom_bar(aes(x = City, fill = City), position = "dodge", stat = "count") +
+         coord_flip()
+# 
+Orders_data_City_Iron <- Orders_data_City %>%
+  filter(Type == "iron") 
+ggplot(Orders_data_City_Iron) +
+         geom_bar(aes(x = City, fill = City), position = "dodge", stat = "count") +
+         coord_flip()
+# 
+Orders_data_City_Lead <- Orders_data_City %>%
+  filter(Type == "lead") 
+ggplot(Orders_data_City_Lead) +
+         geom_bar(aes(x = City, fill = City), position = "dodge", stat = "count") +
+         coord_flip()
+
+
+### (2) 每個縣市的組成(多少比例的白金客戶、金客戶...)
+Orders_data_Type_City <- Orders_data_City %>% 
+  group_by(City,Type) %>% 
+  summarise(count=n()) %>% 
+  mutate(perc=count/sum(count))
+
+ggplot(Orders_data_Type_City, aes(x = City, y = perc*100, fill = Type)) +
+  geom_bar(stat="identity", width = 0.7) +
+  labs(x = "City", y = "percent", fill = "Type") +
+  theme_minimal(base_size = 14) +
+  coord_flip()
+
+
+# 刪掉City欄位的空格、"25"、"Hy"
+Orders_data_CityBeDeleted <- Orders_data[ ,c(2,20)]
+```
+
+
+=============================================================================================
+初步資料分析：
+
+(1) Member_data：
+
+```{r}
+ggplot(Member_data, aes(x = GenderTypeDef)) + geom_bar(position="dodge")
+ggplot(Member_data, aes(x = RegisterSourceTypeDef)) + geom_bar(position="dodge")
+ggplot(Member_data, aes(x = IsInBlackList)) + geom_bar(position="dodge")
+```
+
+(2) Orders_data：
+
+```{r}
+ggplot(Orders_data, aes(x = TrackSourceTypeDef)) + geom_bar(position="dodge")
+ggplot(Orders_data, aes(x = TrackDeviceTypeDef)) + geom_bar(position="dodge")
+ggplot(Orders_data, aes(x = PayProfileTypeDef)) + geom_bar(position="dodge")
+ggplot(Orders_data, aes(x = Quantity)) + geom_bar(position="dodge")
+ggplot(data=subset(Orders_data, !is.na(City)), aes(x = City)) + geom_bar(aes(fill=factor(..count..)), 
+                              position="dodge", family = "AR PL UKai TW") + coord_flip()
+ggplot(Orders_data, aes(x = DeliverTypeDef)) + geom_bar(position="dodge")
+```
+
+```{r}
+ggplot(Orders_data, aes(x = IsMajor)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = IsGift)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = IsSalePageGift)) + geom_bar(position = "dodge")
+```
+
+```{r}
+ggplot(Orders_data, aes(x = PromotionDiscount)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = ECouponDiscount)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = StatusDef)) + geom_bar(position = "dodge")
+ggplot(Orders_data, aes(x = CauseDef)) + 
+      geom_bar(aes(fill=factor(..count..)), position="dodge", family = "AR PL UKai TW") + coord_flip()
+```
+
+(3) ECoupon_data：
+
+```{r}
+ggplot(ECoupon_data, aes(x = ECouponTypeDef)) + geom_bar(aes(fill=factor(..count..)), position="dodge")
+ggplot(ECoupon_data, aes(x = ECouponDiscountPrice)) + geom_bar(aes(fill = factor(..count..)), 
+                                                               position = "dodge")
+ggplot(ECoupon_data, aes(x = ECouponMaxDiscountLimit)) + geom_bar(aes(fill = factor(..count..)), 
+                                                                  position = "dodge")
+```
+
+(4) PromotionConditions_data：
+
+```{r}
+ggplot(PromotionConditions_data, aes(x = PromotionValidFlag)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+ggplot(PromotionConditions_data, aes(x = PromotionCondition_TotalQty)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+ggplot(PromotionConditions_data, aes(x = DiscountType)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+```
+
+(5) PromotionOrders_data：
+
+```{r}
+ggplot(PromotionOrders_data, aes(x = DiscountType)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+ggplot(PromotionOrders_data, aes(x = SalesOrderSlavePromotionDiscount)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+ggplot(PromotionOrders_data, aes(x = SalesOrderSlavePromotionDiscountAllocatedQty)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+ggplot(PromotionOrders_data, aes(x = SalesOrderSlavePromotionDiscountRate)) + 
+           geom_bar(aes(fill=factor(..count..)), position = "dodge", family = "AR PL UKai TW")
+```
+
+PromotionConditions_data 時間間隔計算
+
+```{r}
+library(lubridate)
+library(scales)
+
+time1 <- ymd_hms(PromotionConditions_data$PromotionStartDateTime)
+time2 <- ymd_hms(PromotionConditions_data$PromotionEndDateTime)
+time_interval <- interval(time1,time2)
+TimeDifference <- as.vector(time_length(time_interval,'day'))
+PromotionConditions_data <- cbind(PromotionConditions_data, TimeDifference)
+
+# 將原始時間轉為日期
+time1.df <- as.Date(PromotionConditions_data$PromotionStartDateTime)
+time2.df <- as.Date(PromotionConditions_data$PromotionEndDateTime)
+PromotionConditions_data_date <- cbind(PromotionConditions_data, time1.df, time2.df)
+
+```
