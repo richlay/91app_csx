@@ -1,6 +1,7 @@
 # 91app_csx
 
+我們是第三組，報告的主題為91APP。以下為報告的電子檔
 
-[91APP.html](https://richlay.github.io/91app_csx//Document/91APP.html)
+[第三組_91APPl](https://github.com/richlay/91app_csx/blob/master/CSX-Final-Project-Presentation_第三組_91APP.pdfl)
 
-[最新版程式碼](https://github.com/richlay/91app_csx/blob/master/91APP_最新版.Rmd)
+
